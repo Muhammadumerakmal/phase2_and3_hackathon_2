@@ -83,6 +83,7 @@ pip install -e .
 cp .env.example .env
 # Edit .env with your credentials:
 # - DATABASE_URL
+# - BETTER_AUTH_SECRET (used for JWT token)
 # - GOOGLE_API_KEY (your Gemini API key)
 
 # Run server
