@@ -12,7 +12,9 @@ from database import get_session
 from models import User
 
 # Configuration
-SECRET_KEY = os.environ.get("SECRET_KEY", "your-super-secret-key") # TODO: Load from environment variable
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable is not set")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

@@ -14,7 +14,7 @@ router = APIRouter(
 )
 
 @router.post("/", response_model=UserRead)
-def create_user(user_create: UserCreate, session: Session = Depends(get_session)):
+async def create_user(user_create: UserCreate, session: Session = Depends(get_session)):
     existing_user = session.exec(select(User).where(User.username == user_create.username)).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Username already registered")
@@ -31,11 +31,11 @@ def create_user(user_create: UserCreate, session: Session = Depends(get_session)
     return user
 
 @router.get("/me", response_model=UserRead)
-def read_users_me(current_user: User = Depends(get_current_active_user)):
+async def read_users_me(current_user: User = Depends(get_current_active_user)):
     return current_user
 
-@router.get("/", response_model=List[User])
-def read_users(
+@router.get("/", response_model=List[UserRead])
+async def read_users(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_active_user)
 ):

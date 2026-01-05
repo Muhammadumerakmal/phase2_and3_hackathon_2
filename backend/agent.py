@@ -11,10 +11,15 @@ from openai import AsyncOpenAI
 
 load_dotenv()
 
+# Validate OPEN_ROUTER_KEY
+OPEN_ROUTER_KEY = os.getenv("OPEN_ROUTER_KEY")
+if not OPEN_ROUTER_KEY:
+    raise ValueError("OPEN_ROUTER_KEY environment variable is not set")
+
 # Configure OpenAI client for OpenRouter
 client = AsyncOpenAI(
     base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPEN_ROUTER_KEY"),
+    api_key=OPEN_ROUTER_KEY,
 )
 
 # Model to use

@@ -31,10 +31,12 @@ export default function Home() {
     async (token: string) => {
       try {
         setIsLoading(true);
-        const response = await fetch("http://127.0.0.1:8000/todos", {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/todos`, {
           headers: getAuthHeaders(token),
         });
         if (response.status === 401) {
+          // Token is invalid or user not found - clear it and redirect
+          localStorage.removeItem("access_token");
           router.push("/auth/login");
           return;
         }
@@ -53,13 +55,36 @@ export default function Home() {
   );
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (!token) {
-      router.push("/auth/login");
-      return;
-    }
-    fetchTodos(token);
-  }, [router, fetchTodos]);
+    const validateAndFetch = async () => {
+      const token = localStorage.getItem("access_token");
+      if (!token) {
+        router.push("/auth/login");
+        return;
+      }
+
+      // Validate token first
+      try {
+        const validateResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/users/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (validateResponse.status === 401) {
+          localStorage.removeItem("access_token");
+          router.push("/auth/login");
+          return;
+        }
+
+        // Token is valid, fetch todos
+        fetchTodos(token);
+      } catch (error) {
+        console.error("Validation failed:", error);
+        localStorage.removeItem("access_token");
+        router.push("/auth/login");
+      }
+    };
+
+    validateAndFetch();
+  }, [fetchTodos, router]);
 
   const addTodo = async (content: string) => {
     const token = localStorage.getItem("access_token");
@@ -69,12 +94,13 @@ export default function Home() {
     }
     try {
       setIsAddingTodo(true);
-      const response = await fetch("http://127.0.0.1:8000/todos", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/todos`, {
         method: "POST",
         headers: getAuthHeaders(token),
         body: JSON.stringify({ content, completed: false }),
       });
       if (response.status === 401) {
+        localStorage.removeItem("access_token");
         router.push("/auth/login");
         return;
       }
@@ -102,13 +128,14 @@ export default function Home() {
 
       const updatedTodo = { ...todoToToggle, completed: !todoToToggle.completed };
 
-      const response = await fetch(`http://127.0.0.1:8000/todos/${id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/todos/${id}`, {
         method: "PUT",
         headers: getAuthHeaders(token),
         body: JSON.stringify(updatedTodo),
       });
 
       if (response.status === 401) {
+        localStorage.removeItem("access_token");
         router.push("/auth/login");
         return;
       }
@@ -131,12 +158,13 @@ export default function Home() {
       return;
     }
     try {
-      const response = await fetch(`http://127.0.0.1:8000/todos/${id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/todos/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders(token),
       });
 
       if (response.status === 401) {
+        localStorage.removeItem("access_token");
         router.push("/auth/login");
         return;
       }

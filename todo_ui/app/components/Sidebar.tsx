@@ -22,7 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle, onLogout }) =>
     { icon: <SettingsIcon />, label: "Settings", href: "/settings", color: "muted" },
   ];
 
-  const getColorClasses = (color: string, isActive: boolean) => {
+  const getColorClasses = (color: string) => {
     const colors: Record<string, { active: string; icon: string }> = {
       primary: { active: "bg-primary/15 text-primary border-l-primary", icon: "bg-primary text-white shadow-primary/40" },
       secondary: { active: "bg-secondary/15 text-secondary border-l-secondary", icon: "bg-secondary text-white shadow-secondary/40" },
@@ -73,7 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, onToggle, onLogout }) =>
       <nav className="relative flex flex-col gap-1.5 p-3 mt-4">
         {navItems.map((item, index) => {
           const isActive = pathname === item.href;
-          const colorClasses = getColorClasses(item.color, isActive);
+          const colorClasses = getColorClasses(item.color);
           return (
             <Link
               key={item.href}

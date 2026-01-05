@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir:*)",
+      "Bash(taskkill:*)",
+      "Bash(powershell -Command \"Stop-Process -Id 12624 -Force\")",
+      "Bash(npm run dev:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(python -m uvicorn:*)",
+      "Bash(npm run build:*)"
+    ]
+  }
+}

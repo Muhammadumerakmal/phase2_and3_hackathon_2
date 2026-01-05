@@ -20,7 +20,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/auth/register", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -39,10 +39,27 @@ export default function RegisterPage() {
         return;
       }
 
-      setSuccess(true);
-      setTimeout(() => {
+      // Auto-login after registration
+      const loginFormData = new URLSearchParams();
+      loginFormData.append("username", username);
+      loginFormData.append("password", password);
+
+      const loginResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/auth/token`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: loginFormData.toString(),
+      });
+
+      if (loginResponse.ok) {
+        const loginData = await loginResponse.json();
+        localStorage.setItem("access_token", loginData.access_token);
+        router.push("/");
+      } else {
+        // If auto-login fails, redirect to login page
         router.push("/auth/login");
-      }, 1500);
+      }
     } catch (err) {
       setError("Network error or server unavailable");
       console.error("Registration error:", err);

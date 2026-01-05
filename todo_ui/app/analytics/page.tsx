@@ -28,7 +28,7 @@ export default function AnalyticsPage() {
         return;
       }
       try {
-        const response = await fetch("http://127.0.0.1:8000/todos", {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/todos`, {
           headers: getAuthHeaders(token),
         });
         if (response.ok) {
@@ -42,7 +42,7 @@ export default function AnalyticsPage() {
       }
     };
     fetchTodos();
-  }, [router, getAuthHeaders]);
+  }, [getAuthHeaders, router]);
 
   const totalTasks = todos.length;
   const completedTasks = todos.filter((t) => t.completed).length;

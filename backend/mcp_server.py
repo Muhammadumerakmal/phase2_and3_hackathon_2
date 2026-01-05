@@ -260,7 +260,8 @@ async def list_tasks(user_id: str, status: str = "all") -> list:
                 for todo in todos
             ]
         except Exception as e:
-            return {"error": str(e)}
+            print(f"Error listing tasks: {str(e)}")
+            return []
 
 
 async def complete_task(user_id: str, task_id: int) -> dict:

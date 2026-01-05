@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import DashboardLayout from "../components/DashboardLayout";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://umerphase2and3-production.up.railway.app";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 interface Message {
   id: number;
@@ -22,15 +22,19 @@ interface Conversation {
   updated_at: string;
 }
 
-export default function ChatPage() {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
+function ChatInterface({
+  messages,
+  isLoading,
+  onSendMessage,
+  activeConversation
+}: {
+  messages: Message[],
+  isLoading: boolean,
+  onSendMessage: (content: string) => void,
+  activeConversation: Conversation | null
+}) {
+  const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -39,6 +43,88 @@ export default function ChatPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const handleSend = () => {
+    if (inputValue.trim() && !isLoading) {
+      onSendMessage(inputValue);
+      setInputValue("");
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  return (
+    <div className="flex-1 bg-card/50 rounded-2xl border border-border/50 flex flex-col overflow-hidden">
+      {/* Chat Header */}
+      <div className="p-4 border-b border-border/50">
+        <h2 className="text-xl font-semibold gradient-text">Todo Assistant</h2>
+        <p className="text-sm text-muted-foreground">
+          AI-powered task management
+        </p>
+      </div>
+
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {messages.length === 0 ? (
+          <WelcomeMessage />
+        ) : (
+          <div className="space-y-4">
+            {messages.map(msg => (
+              <MessageBubble key={msg.id} message={msg} />
+            ))}
+          </div>
+        )}
+        {isLoading && <TypingIndicator />}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input Area */}
+      <div className="p-4 border-t border-border/50">
+        <div className="flex gap-2">
+          <textarea
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyPress}
+            placeholder="Type a message... (e.g., 'Add buy groceries to my tasks')"
+            disabled={isLoading}
+            className="flex-1 bg-background border border-border/50 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none h-11"
+            rows={1}
+          />
+          <button
+            onClick={handleSend}
+            disabled={isLoading || !inputValue.trim()}
+            className="h-11 w-11 rounded-xl bg-primary text-white flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary/90 transition-all"
+          >
+            <SendIcon className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Icons
+function SendIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  );
+}
+
+export default function ChatPage() {
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
+  const router = useRouter();
 
   const getAuthHeaders = useCallback(() => {
     const token = localStorage.getItem("access_token");
@@ -52,7 +138,37 @@ export default function ChatPage() {
     };
   }, [router]);
 
+  const validateToken = useCallback(async () => {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      router.push("/auth/login");
+      return false;
+    }
+
+    try {
+      const response = await fetch(`${API_URL}/users/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem("access_token");
+        router.push("/auth/login");
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error("Token validation failed:", error);
+      localStorage.removeItem("access_token");
+      router.push("/auth/login");
+      return false;
+    }
+  }, [router]);
+
   const fetchConversations = useCallback(async () => {
+    const isValid = await validateToken();
+    if (!isValid) return;
+
     const headers = getAuthHeaders();
     if (!headers) return;
 
@@ -61,6 +177,7 @@ export default function ChatPage() {
         headers,
       });
       if (response.status === 401) {
+        localStorage.removeItem("access_token");
         router.push("/auth/login");
         return;
       }
@@ -73,7 +190,7 @@ export default function ChatPage() {
     } finally {
       setIsLoadingConversations(false);
     }
-  }, [getAuthHeaders, router]);
+  }, [getAuthHeaders, validateToken, router]);
 
   const fetchMessages = useCallback(async (conversationId: number) => {
     const headers = getAuthHeaders();
@@ -84,6 +201,7 @@ export default function ChatPage() {
         headers,
       });
       if (response.status === 401) {
+        localStorage.removeItem("access_token");
         router.push("/auth/login");
         return;
       }
@@ -111,7 +229,6 @@ export default function ChatPage() {
   const handleNewChat = () => {
     setActiveConversation(null);
     setMessages([]);
-    setInput("");
   };
 
   const handleSelectConversation = (conv: Conversation) => {
@@ -129,6 +246,7 @@ export default function ChatPage() {
         headers,
       });
       if (response.status === 401) {
+        localStorage.removeItem("access_token");
         router.push("/auth/login");
         return;
       }
@@ -144,88 +262,156 @@ export default function ChatPage() {
     }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
-
+  const handleSendMessage = async (content: string) => {
     const headers = getAuthHeaders();
     if (!headers) return;
 
-    const userMessage = input.trim();
-    setInput("");
-    setIsLoading(true);
-
-    // Optimistically add user message to UI
+    // Optimistically add user message
     const tempUserMessage: Message = {
       id: Date.now(),
       conversation_id: activeConversation?.id || 0,
       role: "user",
-      content: userMessage,
+      content,
       created_at: new Date().toISOString(),
     };
     setMessages(prev => [...prev, tempUserMessage]);
 
+    // Create temporary assistant message that will be streamed
+    const tempAssistantId = Date.now() + 1;
+    const tempAssistantMessage: Message = {
+      id: tempAssistantId,
+      conversation_id: activeConversation?.id || 0,
+      role: "assistant",
+      content: "",
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, tempAssistantMessage]);
+    setIsLoading(true);
+
     try {
-      const response = await fetch(`${API_URL}/chat/`, {
+      // Try streaming endpoint first
+      const response = await fetch(`${API_URL}/chat/stream`, {
         method: "POST",
         headers,
         body: JSON.stringify({
-          message: userMessage,
+          message: content,
           conversation_id: activeConversation?.id || null,
         }),
       });
 
       if (response.status === 401) {
+        localStorage.removeItem("access_token");
         router.push("/auth/login");
         return;
       }
 
-      if (response.ok) {
-        const data = await response.json();
+      if (!response.ok || !response.body) {
+        // Fallback to regular endpoint
+        throw new Error("Streaming not available");
+      }
 
-        // Update active conversation if this was a new chat
-        if (!activeConversation) {
-          const newConv: Conversation = {
-            id: data.conversation_id,
-            user_id: 0,
-            title: userMessage.slice(0, 50) + (userMessage.length > 50 ? "..." : ""),
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-          setActiveConversation(newConv);
-          setConversations(prev => [newConv, ...prev]);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let conversationId = activeConversation?.id;
+      let currentContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = decoder.decode(value, { stream: true });
+        const lines = text.split("\n");
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.type === "start") {
+                conversationId = data.conversation_id;
+                if (!activeConversation) {
+                  const newConv: Conversation = {
+                    id: conversationId,
+                    user_id: 0,
+                    title: content.slice(0, 50) + (content.length > 50 ? "..." : ""),
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                  };
+                  setActiveConversation(newConv);
+                  setConversations(prev => [newConv, ...prev]);
+                }
+              } else if (data.type === "content") {
+                currentContent += data.content;
+                setMessages(prev => prev.map(msg =>
+                  msg.id === tempAssistantId
+                    ? { ...msg, content: currentContent }
+                    : msg
+                ));
+              } else if (data.type === "done") {
+                setMessages(prev => prev.map(msg =>
+                  msg.id === tempAssistantId
+                    ? { ...msg, conversation_id: conversationId || msg.conversation_id }
+                    : msg
+                ));
+              } else if (data.type === "error") {
+                throw new Error(data.error || "Stream error");
+              }
+            } catch (e) {
+              // Ignore parse errors for incomplete chunks
+            }
+          }
         }
-
-        // Add assistant response
-        const assistantMessage: Message = {
-          id: Date.now() + 1,
-          conversation_id: data.conversation_id,
-          role: "assistant",
-          content: data.message,
-          created_at: new Date().toISOString(),
-        };
-        setMessages(prev => [...prev, assistantMessage]);
-      } else {
-        // Handle error
-        const errorMessage: Message = {
-          id: Date.now() + 1,
-          conversation_id: activeConversation?.id || 0,
-          role: "assistant",
-          content: "Sorry, I encountered an error. Please try again.",
-          created_at: new Date().toISOString(),
-        };
-        setMessages(prev => [...prev, errorMessage]);
       }
     } catch (error) {
-      console.error("Failed to send message:", error);
-      const errorMessage: Message = {
-        id: Date.now() + 1,
-        conversation_id: activeConversation?.id || 0,
-        role: "assistant",
-        content: "Sorry, I couldn't connect to the server. Please try again.",
-        created_at: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, errorMessage]);
+      console.error("Streaming failed, falling back:", error);
+      // Fallback to regular endpoint
+      try {
+        const response = await fetch(`${API_URL}/chat/`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            message: content,
+            conversation_id: activeConversation?.id || null,
+          }),
+        });
+
+        if (response.status === 401) {
+          localStorage.removeItem("access_token");
+          router.push("/auth/login");
+          return;
+        }
+
+        if (response.ok) {
+          const data = await response.json();
+
+          if (!activeConversation) {
+            const newConv: Conversation = {
+              id: data.conversation_id || Date.now(),
+              user_id: 0,
+              title: content.slice(0, 50) + (content.length > 50 ? "..." : ""),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            };
+            setActiveConversation(newConv);
+            setConversations(prev => [newConv, ...prev]);
+          }
+
+          setMessages(prev => prev.map(msg =>
+            msg.id === tempAssistantId
+              ? { ...msg, content: data.message, conversation_id: data.conversation_id }
+              : msg
+          ));
+        } else {
+          throw new Error("Failed to send message");
+        }
+      } catch (fallbackError) {
+        console.error("Fallback failed:", fallbackError);
+        setMessages(prev => prev.map(msg =>
+          msg.id === tempAssistantId
+            ? { ...msg, content: "Sorry, I couldn't connect to the server." }
+            : msg
+        ));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -234,9 +420,8 @@ export default function ChatPage() {
   return (
     <DashboardLayout>
       <div className="flex h-[calc(100vh-8rem)] gap-4">
-        {/* Conversation Sidebar */}
+        {/* Sidebar */}
         <div className="w-72 flex-shrink-0 bg-card/50 rounded-2xl border border-border/50 flex flex-col">
-          {/* New Chat Button */}
           <div className="p-4 border-b border-border/50">
             <button
               onClick={handleNewChat}
@@ -247,7 +432,6 @@ export default function ChatPage() {
             </button>
           </div>
 
-          {/* Conversations List */}
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {isLoadingConversations ? (
               <div className="flex items-center justify-center py-8">
@@ -256,8 +440,6 @@ export default function ChatPage() {
             ) : conversations.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 No conversations yet.
-                <br />
-                Start a new chat!
               </div>
             ) : (
               conversations.map(conv => (
@@ -289,56 +471,18 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Chat Area with OpenAI ChatKit */}
-        <div className="flex-1 bg-card/50 rounded-2xl border border-border/50 flex flex-col overflow-hidden">
-          {/* Chat Header */}
-          <div className="p-4 border-b border-border/50">
-            <h2 className="text-xl font-semibold gradient-text">Todo Assistant</h2>
-            <p className="text-sm text-muted-foreground">
-              AI-powered task management with natural language
-            </p>
-          </div>
-
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 ? (
-              <WelcomeMessage />
-            ) : (
-              messages.map(msg => (
-                <MessageBubble key={msg.id} message={msg} />
-              ))
-            )}
-            {isLoading && <TypingIndicator />}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input Area */}
-          <form onSubmit={handleSendMessage} className="p-4 border-t border-border/50">
-            <div className="flex gap-3">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type a message... (e.g., 'Add buy groceries to my tasks')"
-                className="flex-1 bg-muted/50 text-foreground rounded-xl px-4 py-3 border border-border/50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground"
-                disabled={isLoading}
-              />
-              <button
-                type="submit"
-                disabled={isLoading || !input.trim()}
-                className="px-6 py-3 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-white rounded-xl font-medium transition-all duration-200 shadow-lg shadow-primary/30 disabled:shadow-none"
-              >
-                <SendIcon className="h-5 w-5" />
-              </button>
-            </div>
-          </form>
-        </div>
+        <ChatInterface
+          messages={messages}
+          isLoading={isLoading}
+          onSendMessage={handleSendMessage}
+          activeConversation={activeConversation}
+        />
       </div>
     </DashboardLayout>
   );
 }
 
-// Components
+// Subcomponents
 
 function WelcomeMessage() {
   return (
@@ -349,23 +493,10 @@ function WelcomeMessage() {
       <div>
         <h3 className="text-xl font-semibold mb-2">Welcome to Todo Assistant!</h3>
         <p className="text-muted-foreground max-w-md">
-          Powered by OpenAI ChatKit. I can help you manage your tasks through natural conversation. Try asking me to:
+          I can help you manage your tasks through natural conversation.
+          Try saying something like <span className="font-medium">"Add buy groceries to my tasks"</span> or <span className="font-medium">"Show me my pending tasks"</span>.
         </p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-lg">
-        <SuggestionCard text="Add a task to buy groceries" />
-        <SuggestionCard text="Show me my pending tasks" />
-        <SuggestionCard text="Give me a summary of my tasks" />
-        <SuggestionCard text="How am I doing? Any tips?" />
-      </div>
-    </div>
-  );
-}
-
-function SuggestionCard({ text }: { text: string }) {
-  return (
-    <div className="px-4 py-3 bg-muted/30 rounded-xl border border-border/50 text-sm text-muted-foreground hover:bg-muted/50 hover:border-primary/30 transition-all cursor-pointer">
-      &ldquo;{text}&rdquo;
     </div>
   );
 }
@@ -393,7 +524,7 @@ function MessageBubble({ message }: { message: Message }) {
 
 function TypingIndicator() {
   return (
-    <div className="flex justify-start">
+    <div className="flex justify-start mt-4">
       <div className="bg-muted/50 rounded-2xl rounded-bl-md px-4 py-3 border border-border/50">
         <div className="flex gap-1">
           <div className="h-2 w-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
@@ -405,8 +536,7 @@ function TypingIndicator() {
   );
 }
 
-// Icons
-
+// Icons (inline SVG)
 function PlusIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -429,15 +559,6 @@ function TrashIcon(props: React.SVGProps<SVGSVGElement>) {
     <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="3 6 5 6 21 6" />
       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-    </svg>
-  );
-}
-
-function SendIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="22" y1="2" x2="11" y2="13" />
-      <polygon points="22 2 15 22 11 13 2 9 22 2" />
     </svg>
   );
 }

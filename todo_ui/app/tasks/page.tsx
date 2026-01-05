@@ -35,7 +35,7 @@ export default function TasksPage() {
     }
     try {
       setIsLoading(true);
-      const response = await fetch("http://127.0.0.1:8000/todos", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/todos`, {
         headers: getAuthHeaders(token),
       });
       if (response.status === 401) {
@@ -54,14 +54,14 @@ export default function TasksPage() {
 
   useEffect(() => {
     fetchTodos();
-  }, [fetchTodos]);
+  }, [fetchTodos, router]);
 
   const addTodo = async (content: string) => {
     const token = localStorage.getItem("access_token");
     if (!token) return;
     try {
       setIsAddingTodo(true);
-      const response = await fetch("http://127.0.0.1:8000/todos", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/todos`, {
         method: "POST",
         headers: getAuthHeaders(token),
         body: JSON.stringify({ content }),
@@ -82,7 +82,7 @@ export default function TasksPage() {
     const todo = todos.find((t) => t.id === id);
     if (!todo) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/todos/${id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/todos/${id}`, {
         method: "PUT",
         headers: getAuthHeaders(token),
         body: JSON.stringify({ ...todo, completed: !todo.completed }),
@@ -100,7 +100,7 @@ export default function TasksPage() {
     const token = localStorage.getItem("access_token");
     if (!token) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8000/todos/${id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/todos/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders(token),
       });
@@ -124,7 +124,7 @@ export default function TasksPage() {
     const activeTodos = todos.filter((t) => !t.completed);
     for (const todo of activeTodos) {
       try {
-        await fetch(`http://127.0.0.1:8000/todos/${todo.id}`, {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'}/todos/${todo.id}`, {
           method: "PUT",
           headers: getAuthHeaders(token),
           body: JSON.stringify({ ...todo, completed: true }),
@@ -457,10 +457,4 @@ function EmptyIcon(props: React.SVGProps<SVGSVGElement>) {
       <path d="M9 9h6v6H9z" />
     </svg>
   );
-}
-
-interface Todo {
-  id: number;
-  content: string;
-  completed: boolean;
 }

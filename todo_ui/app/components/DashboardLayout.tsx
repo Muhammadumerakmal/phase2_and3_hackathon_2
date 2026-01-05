@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useLayoutEffect } from "react";
 import { useRouter } from "next/navigation";
 import Sidebar from "./Sidebar";
 
@@ -8,18 +8,43 @@ interface DashboardLayoutProps {
   children: React.ReactNode;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const router = useRouter();
 
-  useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (!token) {
-      router.push("/auth/login");
-    } else {
-      setIsAuthenticated(true);
-    }
+  useLayoutEffect(() => {
+    const validateToken = async () => {
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+      if (!token) {
+        router.push("/auth/login");
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/users/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.status === 401) {
+          // Token is invalid or user not found - clear it
+          localStorage.removeItem("access_token");
+          router.push("/auth/login");
+          return;
+        }
+
+        // Token is valid
+        setIsAuthenticated(true);
+      } catch (error) {
+        console.error("Auth validation failed:", error);
+        localStorage.removeItem("access_token");
+        router.push("/auth/login");
+      }
+    };
+
+    validateToken();
   }, [router]);
 
   const handleLogout = () => {
